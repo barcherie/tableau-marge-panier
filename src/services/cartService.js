@@ -1,13 +1,23 @@
 // 📦 services/cartService.js (mis à jour avec client partagé)
 import supabase from '../supabaseClient'; // ✅ Oui chef.
 
-export const getCartItems = async () => {
+export async function getCartItems() {
   const { data, error } = await supabase
     .from('cart_items')
-    .select('id, quantity, products(*)');
-  if (error) throw error;
-  return data;
-};
+    .select('id, quantity, product:product_id (id, name, purchase_price, selling_price, tva_rate)');
+
+  if (error) {
+    console.error('Erreur récupération panier :', error);
+    return [];
+  }
+
+  return data.map((item) => ({
+    ...item.product,
+    id: item.id,
+    quantity: item.quantity,
+  }));
+}
+
 
 export const addToCart = async (productId) => {
     const { data: existing, error: fetchError } = await supabase
@@ -32,7 +42,7 @@ export const addToCart = async (productId) => {
     }
   };
 
-export const removeFromCart = async (id) => {
+export const removeCartItem = async (id) => {
   return await supabase.from('cart_items').delete().eq('id', id);
 };
 
@@ -40,4 +50,16 @@ export const clearCart = async () => {
   return await supabase.from('cart_items').delete().neq('id', '');
 };
 
+export async function updateCartItemQuantity(id, quantity) {
+  const { error } = await supabase
+    .from('cart_items')
+    .update({ quantity })
+    .eq('id', id);
 
+  if (error) {
+    console.error('Erreur mise à jour quantité :', error);
+    return null;
+  }
+
+  return true;
+}
