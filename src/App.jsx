@@ -1,16 +1,18 @@
+// 📄 App.jsx (version clean avec bouton Déconnexion)
 import React from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import ProductView from "./ProductView";
-import CartView from "./CartView";
+import supabase from "./services/supabaseClient";
 
 function App() {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.reload(); // Recharge pour repasser à /login via AppRouter
+  };
+
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<ProductView />} />
-        <Route path="/panier" element={<CartView />} />
-      </Routes>
-    </Router>
+    <div>
+      <ProductView />
+    </div>
   );
 }
 

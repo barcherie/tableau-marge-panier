@@ -1,8 +1,8 @@
+// 📄 supabaseClient.js — avec logs pour vérification
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://avowtghynpybkrncafjs.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF2b3d0Z2h5bnB5YmtybmNhZmpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ5NjQ2NDQsImV4cCI6MjA2MDU0MDY0NH0.rti8M0nB1VP_E5Dd89x4hsj2HrAwlLLZygzh6kCjmkw';
+const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
+const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
+const supabase = createClient(supabaseUrl, supabaseKey);
 export default supabase;

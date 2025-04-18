@@ -1,31 +1,70 @@
-# React & Tailwind CSS Starter Pack
+# 🏹 Tableau de Marge — Besançon Archerie
 
-This is a starter pack for creating React projects with Tailwind CSS configured. It uses React version **18.2** and Tailwind CSS version **3.2**.
+Application React de gestion de produits, calculs de marges, panier, et export PDF. Authentification simplifiée avec email/mot de passe hashé.
 
-## Usage
+---
 
-This starter pack includes a basic setup for using **Tailwind CSS with React**. To start building your own components and styles, follow these steps:
+## 🚀 URL de production
 
-1. Clone the repository to your local machine.
-    ```sh
-    git clone https://github.com/thepranaygupta/react-tailwind-css-starter-pack.git
-    ```
+👉 [https://tableau-marge.vercel.app](https://tableau-marge.vercel.app)
 
-1. Install the required packages.
-    ```sh
-    cd react-tailwind-css-starter-pack
-    npm install
-    ```
+---
 
-1. Start the development server.
-    ```sh
-    npm start
-    ```
-1. Open the project in your browser at [`http://localhost:3000`](http://localhost:3000) to view your project.
-1. Create your React components and add your styles using Tailwind classes. You can also create new CSS files and import them into your components.
+## 🔐 Authentification
 
-The project is set up to use `postcss-cli` to process your CSS files. You can add your own `tailwind.config.js` file to customize your Tailwind setup.
+L'application est protégée par une page de connexion.
 
-## Contributing
+---
 
-Contributions are welcome! If you have any suggestions or find any issues, please feel free to open an issue or a pull request.
+## 📦 Fonctionnalités principales
+
+- 📊 Affichage trié des produits par taux de marge
+- 🟢🟠🔴 Code couleur selon la rentabilité
+- 🧮 Édition en ligne des produits
+- 📁 Import CSV par glisser-déposer
+- ➕ Ajout manuel de produits
+- 🛒 Panier multi-produits avec quantité et total
+- 🧾 Export PDF propre avec logo
+- 🔒 Connexion simple avec authentification front-end
+
+---
+
+## 🛠️ Installation locale
+
+```bash
+git clone https://github.com/tonuser/tableau-marge.git
+cd tableau-marge
+npm install
+npm run dev
+```
+
+---
+
+## 📁 Structure des fichiers
+
+- `App.jsx` — Vue principale produits
+- `CartView.jsx` — Vue panier
+- `Login.jsx` — Connexion sécurisée
+- `AppRouter.jsx` — Gestion des routes et auth
+- `supabaseClient.js` — (déprécié si plus utilisé)
+
+---
+
+## 🧪 Test rapide de login local
+
+1. Lance le projet en local : `npm run dev`
+2. Va sur [http://localhost:3000](http://localhost:3000)
+3. Entre tes identifiants (voir section Auth)
+
+---
+
+## 🧼 Déploiement Vercel
+
+Le projet est connecté à GitHub. Toute mise à jour sur `main` déclenche automatiquement un build sur Vercel.
+
+---
+
+## 🤝 Crédits
+
+- Créé avec amour (et archerie) par Valentin
+- Assisté par un IA légèrement sarcastique
