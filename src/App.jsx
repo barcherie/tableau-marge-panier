@@ -1,5 +1,6 @@
-// 📄 App.jsx (version clean avec bouton Déconnexion)
+// 📄 App.jsx (version clean avec bouton Déconnexion + lien panier)
 import React from "react";
+import { Link } from "react-router-dom";
 import ProductView from "./ProductView";
 import supabase from "./services/supabaseClient";
 
@@ -11,6 +12,10 @@ function App() {
 
   return (
     <div>
+      <div style={{ display: "flex", justifyContent: "space-between", padding: "1rem" }}>
+        <Link to="/panier" className="see-cart-button">Voir mon panier</Link>
+        <button onClick={handleLogout}>Se déconnecter</button>
+      </div>
       <ProductView />
     </div>
   );
