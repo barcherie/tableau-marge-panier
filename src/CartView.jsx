@@ -1,40 +1,107 @@
-// 📄 CartView.jsx — refonte export PDF
+
+// 📄 CartView.jsx — version complète avec persistance + reset global
 import React, { useState, useEffect } from 'react';
 import { getCartItems, updateCartItemQuantity, removeCartItem } from './services/cartService';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import logo from './logo.png';
 
+const CUSTOM_PRICE_KEY = 'cart_custom_prices';
+
 export default function CartView() {
   const [cart, setCart] = useState([]);
 
+  const loadCustomPrices = () => {
+    try {
+      const raw = localStorage.getItem(CUSTOM_PRICE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  };
+
+  const saveCustomPrice = (productId, price) => {
+    const saved = loadCustomPrices();
+    if (price === null) {
+      delete saved[productId];
+    } else {
+      saved[productId] = price;
+    }
+    localStorage.setItem(CUSTOM_PRICE_KEY, JSON.stringify(saved));
+  };
+
+  const resetAllCustomPrices = () => {
+    localStorage.removeItem(CUSTOM_PRICE_KEY);
+    setCart(cart.map((item) => ({ ...item, custom_price: null })));
+  };
+
   useEffect(() => {
-    getCartItems().then(setCart);
+    const savedPrices = loadCustomPrices();
+    getCartItems().then((items) => {
+      const updated = items.map((item) => ({
+        ...item,
+        custom_price: savedPrices[item.id] ?? null
+      }));
+      setCart(updated);
+    });
   }, []);
 
   const getHT = (price, tva) => price / (1 + (tva || 0) / 100);
-  const getLineTotal = (p) => (p.selling_price || 0) * (p.quantity || 0);
+  const getEffectivePrice = (p) =>
+    typeof p.custom_price === 'number' && !isNaN(p.custom_price) ? p.custom_price : p.selling_price;
+  const getLineTotal = (p) => getEffectivePrice(p) * (p.quantity || 0);
   const getMargin = (p) => {
-    const ht = getHT(p.selling_price || 0, p.tva_rate || 0);
+    const ht = getHT(getEffectivePrice(p) || 0, p.tva_rate || 0);
     return ht && p.purchase_price ? ((ht - p.purchase_price) / ht) * 100 : 0;
   };
 
-  const handleChangeQuantity = async (productId, delta) => {
-    const product = cart.find((p) => p.id === productId);
-    if (!product) return;
-    const newQty = (product.quantity || 0) + delta;
-    if (newQty < 1) return;
+  const handleChangeQuantity = async (productId, value) => {
+    const newQty = parseInt(value);
+    if (isNaN(newQty) || newQty < 1) return;
     await updateCartItemQuantity(productId, newQty);
-    setCart(await getCartItems());
+    const savedPrices = loadCustomPrices();
+    const updated = await getCartItems();
+    setCart(updated.map((item) => ({
+      ...item,
+      custom_price: savedPrices[item.id] ?? null
+    })));
+  };
+
+  const handleChangeCustomPrice = (productId, value) => {
+    const price = parseFloat(value);
+    saveCustomPrice(productId, price);
+    const newCart = cart.map((item) =>
+      item.id === productId ? { ...item, custom_price: price } : item
+    );
+    setCart(newCart);
+  };
+
+  const handleResetPrice = (productId) => {
+    saveCustomPrice(productId, null);
+    setCart(cart.map((item) =>
+      item.id === productId ? { ...item, custom_price: null } : item
+    ));
+  };
+
+  const handleResetAllPrices = () => {
+    resetAllCustomPrices();
   };
 
   const handleRemove = async (productId) => {
     await removeCartItem(productId);
-    setCart(await getCartItems());
+    const savedPrices = loadCustomPrices();
+    const updated = await getCartItems();
+    setCart(updated.map((item) => ({
+      ...item,
+      custom_price: savedPrices[item.id] ?? null
+    })));
   };
 
   const totalTTC = cart.reduce((sum, p) => sum + getLineTotal(p), 0);
-  const totalHT = cart.reduce((sum, p) => sum + (getHT(p.selling_price, p.tva_rate) * (p.quantity || 0)), 0);
+  const totalHT = cart.reduce(
+    (sum, p) => sum + getHT(getEffectivePrice(p), p.tva_rate) * (p.quantity || 0),
+    0
+  );
   const marginAvg = cart.length
     ? cart.reduce((sum, p) => sum + getMargin(p), 0) / cart.length
     : 0;
@@ -46,43 +113,80 @@ export default function CartView() {
     const dateStr = today.toLocaleDateString();
     const randomId = Math.floor(1000 + Math.random() * 9000);
 
-    // Logo + Titre
-    doc.addImage(logo, 'PNG', 20, 10, 30, 15);
-    doc.setFontSize(18);
-    doc.text('Devis — Besançon Archerie', 60, 20);
+    const primary = '#2D2A32';
+    const lightGray = [245, 245, 245];
 
-    // Infos Devis
-    doc.setFontSize(10);
-    doc.text(`Date : ${dateStr}`, 60, 26);
-    doc.text(`N° Devis : #${randomId}`, 60, 32);
+    doc.setFillColor(primary);
+    doc.rect(0, 0, pageWidth, 50, 'F');
+    doc.setTextColor(255);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Devis — Besançon Archerie', 20, 28);
 
-    // Coordonnées
-    doc.text('Besançon Archerie', 20, 45);
-    doc.text('25 grande rue, 25770 Franois', 20, 50);
-    doc.text('besanconarcherie@gmail.com', 20, 55);
+    const logoWidth = 40;
+    doc.addImage(logo, 'PNG', pageWidth - logoWidth - 20, 5, logoWidth, logoWidth);
 
-    // Tableau produits
+    const contentStartY = 70;
+    doc.setTextColor(33);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Date : ${dateStr}`, 20, contentStartY);
+    doc.text(`N° Devis : #${randomId}`, 20, contentStartY + 6);
+    doc.text('Besançon Archerie', 20, contentStartY + 18);
+    doc.text('25 grande rue, 25770 Franois', 20, contentStartY + 23);
+    doc.text('besanconarcherie@gmail.com', 20, contentStartY + 28);
+
     autoTable(doc, {
-      startY: 65,
+      startY: contentStartY + 35,
       head: [['Nom', 'PU TTC', 'Quantité', 'Total TTC']],
-      body: cart.map((p) => [
-        p.name,
-        `${p.selling_price.toFixed(2)} €`,
-        p.quantity,
-        `${getLineTotal(p).toFixed(2)} €`
-      ]),
-      theme: 'grid',
-      styles: { fontSize: 10 },
+      body: cart.map((p) => {
+        const eff = getEffectivePrice(p);
+        const original = p.selling_price;
+        const isReduced = eff < original;
+        const discount = isReduced ? `(-${Math.round((1 - eff / original) * 100)}%)` : '';
+
+        const cellContent = isReduced
+          ? `${eff.toFixed(2)} €
+${original.toFixed(2)} € ${discount}`
+          : `${eff.toFixed(2)} €`;
+
+        return [
+          { content: p.name, styles: { halign: 'left' } },
+          { content: cellContent, styles: { halign: 'right', fontSize: 10 } },
+          { content: p.quantity, styles: { halign: 'center' } },
+          { content: `${getLineTotal(p).toFixed(2)} €`, styles: { halign: 'right' } }
+        ];
+      }),
+      theme: 'striped',
+      headStyles: {
+        fillColor: [145, 39, 19],
+        textColor: 255,
+        fontStyle: 'bold',
+        halign: 'center'
+      },
+      bodyStyles: {
+        fontSize: 10,
+        textColor: [51, 51, 51]
+      },
+      alternateRowStyles: { fillColor: [250, 250, 250] },
+      margin: { left: 20, right: 20 }
     });
 
     const summaryY = (doc.lastAutoTable.finalY || 100) + 10;
-    doc.setDrawColor(33, 33, 33);
-    doc.setFillColor(230, 230, 250);
-    doc.roundedRect(20, summaryY, 170, 20, 4, 4, 'F');
+    const boxWidth = 75;
+    const boxX = pageWidth - boxWidth - 20;
+
+    doc.setDrawColor(200);
+    doc.setFillColor(...lightGray);
+    doc.roundedRect(boxX, summaryY, boxWidth, 22, 4, 4, 'F');
+    doc.setTextColor(primary);
     doc.setFontSize(12);
-    doc.setTextColor(0);
-    doc.text(`Total HT : ${totalHT.toFixed(2)} €`, 25, summaryY + 7);
-    doc.text(`Total TTC : ${totalTTC.toFixed(2)} €`, 25, summaryY + 14);
+    doc.text(`Total HT : ${totalHT.toFixed(2)} €`, boxX + 5, summaryY + 8);
+    doc.text(`Total TTC : ${totalTTC.toFixed(2)} €`, boxX + 5, summaryY + 16);
+
+    doc.setTextColor(150);
+    doc.setFontSize(9);
+    doc.text('Merci pour votre confiance — www.besancon-archerie.fr', 20, 290);
 
     doc.save('devis.pdf');
   };
@@ -96,6 +200,9 @@ export default function CartView() {
         <div className="cart-layout">
           <button onClick={exportPDF} className="export-devis" style={{ marginBottom: '1rem' }}>
             📄 Export Devis
+          </button>
+          <button onClick={handleResetAllPrices} style={{ marginBottom: '1rem' }}>
+            🔄 Réinitialiser tous les prix modifiés
           </button>
           <div className="cart-table">
             <table>
@@ -111,25 +218,63 @@ export default function CartView() {
                 </tr>
               </thead>
               <tbody>
-                {cart.map((p) => (
-                  <tr key={p.id}>
-                    <td>{p.name}</td>
-                    <td>{p.purchase_price?.toFixed(2) || '–'} €</td>
-                    <td>{p.selling_price?.toFixed(2) || '–'} €</td>
-                    <td>
-                      <input
-                        type="number"
-                        min="1"
-                        value={p.quantity || 1}
-                        onChange={(e) => handleChangeQuantity(p.id, e.target.value)}
-                        style={{ width: '60px' }}
-                      />
-                    </td>
-                    <td>{getLineTotal(p).toFixed(2)} €</td>
-                    <td>{getMargin(p).toFixed(2)}%</td>
-                    <td><button onClick={() => handleRemove(p.id)}>🗑️</button></td>
-                  </tr>
-                ))}
+                {cart.map((p) => {
+                  const eff = getEffectivePrice(p);
+                  const original = p.selling_price;
+                  const isDiscounted = eff < original;
+                  const discountPercent = isDiscounted ? Math.round((1 - eff / original) * 100) : 0;
+
+                  return (
+                    <tr key={p.id}>
+                      <td>{p.name}</td>
+                      <td>{p.purchase_price?.toFixed(2) || '–'} €</td>
+                      <td>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={eff}
+                          onChange={(e) => handleChangeCustomPrice(p.id, e.target.value)}
+                          style={{ width: '60px' }}
+                        />
+                        {isDiscounted && (
+                          <div style={{ fontSize: '0.75em', color: '#888' }}>
+                            <span style={{ textDecoration: 'line-through', marginRight: '4px' }}>
+                              {original.toFixed(2)} €
+                            </span>
+                            <span style={{ color: '#912713' }}>(–{discountPercent}%)</span>
+                          </div>
+                        )}
+                        {p.custom_price !== null && (
+                          <button
+                            onClick={() => handleResetPrice(p.id)}
+                            style={{
+                              fontSize: '0.75em',
+                              marginTop: '4px',
+                              background: 'none',
+                              border: 'none',
+                              color: '#007bff',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            🔄 Réinitialiser
+                          </button>
+                        )}
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          min="1"
+                          value={p.quantity || 1}
+                          onChange={(e) => handleChangeQuantity(p.id, e.target.value)}
+                          style={{ width: '60px' }}
+                        />
+                      </td>
+                      <td>{getLineTotal(p).toFixed(2)} €</td>
+                      <td>{getMargin(p).toFixed(2)}%</td>
+                      <td><button onClick={() => handleRemove(p.id)}>🗑️</button></td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
