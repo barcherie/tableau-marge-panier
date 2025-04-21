@@ -179,3 +179,23 @@ button.export-devis {
 button.export-devis:hover {
   background-color: #111827;
 }
+
+.search-bar-container {
+  display: flex;
+  justify-content: center;
+  margin: 1rem 0;
+}
+
+.search-bar {
+  padding: 0.6rem 1rem;
+  width: 300px;
+  font-size: 1rem;
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  transition: border-color 0.3s;
+}
+
+.search-bar:focus {
+  border-color: #912713;
+  outline: none;
+}

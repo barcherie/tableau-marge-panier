@@ -80,4 +80,18 @@ export const replaceAllProducts = async (newProducts) => {
   
     return data;
   };
-  
+
+  // 🗑️ Supprime un produit par ID
+export const deleteProduct = async (id) => {
+  const { error } = await supabase
+    .from('products')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error("Erreur lors de la suppression du produit:", error);
+    return false;
+  }
+
+  return true;
+};

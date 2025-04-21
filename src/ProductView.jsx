@@ -1,3 +1,4 @@
+// 📄 ProductView.jsx — avec onglet de produits modifiés (localStorage)
 import React, { useState, useEffect, useRef } from "react";
 import Papa from "papaparse";
 import { useDropzone } from "react-dropzone";
@@ -8,10 +9,12 @@ import {
   insertProduct,
   updateProduct,
   replaceAllProducts,
+  deleteProduct
 } from "./services/productService";
 import { addToCart } from "./services/cartService";
 import "./App.css";
 import logo from "./logo.png";
+
 
 function normalize(str) {
   return str.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
@@ -66,18 +69,12 @@ function CSVDropzone({ onRefresh }) {
 
 function App() {
   const [data, setData] = useState([]);
-  const [form, setForm] = useState({
-    name: "",
-    purchase_price: "",
-    selling_price: "",
-    tva_rate: "20",
-    tva_recoverable: true,
-  });
-  const [editedProducts, setEditedProducts] = useState([]);
+  const [form, setForm] = useState({ name: "", purchase_price: "", selling_price: "", tva_rate: "20", tva_recoverable: true });
   const [activeTab, setActiveTab] = useState("red");
   const [pendingUpdates, setPendingUpdates] = useState({});
   const [searchTerm, setSearchTerm] = useState("");
   const searchBoxRef = useRef(null);
+  const modifiedIds = JSON.parse(localStorage.getItem("modifiedProductIds") || "[]");
 
   useEffect(() => {
     getAllProducts().then(setData);
@@ -93,29 +90,17 @@ function App() {
 
   const sortedByTab = () => {
     const enriched = data.map((p) => ({ ...p, marginRate: calculateMarginRate(p) }));
-    const filtered = enriched
-      .filter((p) => normalize(p.name).includes(normalize(searchTerm)))
-      .filter((p) => {
-        if (activeTab === "red") return p.marginRate < 25;
-        if (activeTab === "orange") return p.marginRate >= 25 && p.marginRate < 35;
-        if (activeTab === "green") return p.marginRate >= 35;
-        return true;
-      })
-      .sort((a, b) => b.marginRate - a.marginRate);
+    const filtered = enriched.filter((p) => normalize(p.name).includes(normalize(searchTerm)));
 
-    if (filtered.length === 0 && searchTerm && searchBoxRef.current) {
-      searchBoxRef.current.classList.add("shake");
-      setTimeout(() => searchBoxRef.current.classList.remove("shake"), 600);
-    }
-
+    if (activeTab === "red") return filtered.filter((p) => p.marginRate < 25).sort((a, b) => b.marginRate - a.marginRate);
+    if (activeTab === "orange") return filtered.filter((p) => p.marginRate >= 25 && p.marginRate < 35).sort((a, b) => b.marginRate - a.marginRate);
+    if (activeTab === "green") return filtered.filter((p) => p.marginRate >= 35).sort((a, b) => b.marginRate - a.marginRate);
+    if (activeTab === "modified") return filtered.filter((p) => modifiedIds.includes(p.id));
     return filtered;
   };
 
   const queueEdit = (id, field, value) => {
-    setPendingUpdates((prev) => ({
-      ...prev,
-      [id]: { ...prev[id], [field]: field === "tva_recoverable" ? value : parseFloat(value) },
-    }));
+    setPendingUpdates((prev) => ({ ...prev, [id]: { ...prev[id], [field]: field === "tva_recoverable" ? value : parseFloat(value) } }));
   };
 
   const handleConfirmEdit = async (id) => {
@@ -123,14 +108,16 @@ function App() {
     const updates = { ...product, ...pendingUpdates[id] };
     const result = await updateProduct(id, updates);
     if (result) {
-      setEditedProducts((prev) => [...prev.filter((item) => item.id !== result.id), result]);
+      const updatedIds = [...new Set([...modifiedIds, id])];
+      localStorage.setItem("modifiedProductIds", JSON.stringify(updatedIds));
       setData(await getAllProducts());
-      setPendingUpdates((prev) => {
-        const newUpdates = { ...prev };
-        delete newUpdates[id];
-        return newUpdates;
-      });
+      setPendingUpdates((prev) => { const newUpdates = { ...prev }; delete newUpdates[id]; return newUpdates; });
     }
+  };
+
+  const clearModified = () => {
+    localStorage.removeItem("modifiedProductIds");
+    setActiveTab("all");
   };
 
   const handleFormChange = (e) => {
@@ -184,10 +171,23 @@ function App() {
         <button onClick={handleAddProduct}>Ajouter</button>
       </div>
 
+      <div className="search-bar-container">
+        <input
+          type="text"
+          placeholder="🔍 Rechercher un produit..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          ref={searchBoxRef}
+          className="search-bar"
+        />
+      </div>
+
       <section className="tabs">
         <button className={activeTab === "red" ? "active" : ""} onClick={() => setActiveTab("red")}>🔴 &lt; 25%</button>
         <button className={activeTab === "orange" ? "active" : ""} onClick={() => setActiveTab("orange")}>🟠 25–35%</button>
         <button className={activeTab === "green" ? "active" : ""} onClick={() => setActiveTab("green")}>🟢 ≥ 35%</button>
+        <button className={activeTab === "modified" ? "active" : ""} onClick={() => setActiveTab("modified")}>✏️ Modifiés</button>
+        <button onClick={clearModified}>🧹 Vider</button>
       </section>
 
       <p style={{ textAlign: "center" }}>{filteredProducts.length} produits listés</p>
@@ -206,19 +206,27 @@ function App() {
               <td>{p.tva_recoverable ? "Oui" : "Non"}</td>
               <td style={{ color: getColor(p.marginRate) }}>{p.marginRate.toFixed(2)}%</td>
               <td>
-                <button
-  onClick={async () => {
-    try {
-      await addToCart(p.id);
-      alert("Produit ajouté au panier !");
-    } catch (err) {
-      console.error("Erreur ajout panier :", err);
-      alert("Erreur lors de l'ajout au panier.");
-    }
-  }}
->
-  Ajouter au panier
-</button>
+                <button onClick={async () => {
+                  try {
+                    await addToCart(p.id);
+                    alert("Produit ajouté au panier !");
+                  } catch (err) {
+                    console.error("Erreur ajout panier :", err);
+                    alert("Erreur lors de l'ajout au panier.");
+                  }
+                }}>
+                  Ajouter au panier
+                </button>
+                <button onClick={async () => {
+                  const confirm = window.confirm(`Supprimer le produit "${p.name}" ?`);
+                  if (!confirm) return;
+                  const success = await deleteProduct(p.id);
+                  if (success) {
+                    setData((prev) => prev.filter((item) => item.id !== p.id));
+                  }
+                  }} style={{ marginLeft: "0.5rem", color: "red" }}>
+                  🗑️
+                </button>
               </td>
             </tr>
           ))}
